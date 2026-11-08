@@ -324,10 +324,11 @@ export const NorthernMap: React.FC<NorthernMapProps> = ({
                 href="${googleMapsUrl}"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#C86446] hover:bg-[#A84F35] rounded-md transition-colors shadow-sm"
+                class="directions-btn flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#C86446] hover:bg-[#A84F35] rounded-lg transition-colors shadow-sm"
+                style="background-color: #C86446; color: #ffffff !important; text-decoration: none !important;"
               >
-                <span>Google Maps Directions</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                <span style="color: #ffffff !important; font-weight: 700;">Google Maps Directions</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" style="color: #ffffff !important;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               </a>
             </div>
           </div>

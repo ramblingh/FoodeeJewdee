@@ -11,8 +11,6 @@ import {
   Phone,
   Clock,
   Sparkles,
-  Award,
-  UserCheck,
 } from 'lucide-react';
 
 interface PublicAddLocationModalProps {
@@ -38,7 +36,6 @@ export const PublicAddLocationModal: React.FC<PublicAddLocationModalProps> = ({
   const [lng, setLng] = useState<number>(pendingCoords ? pendingCoords.lng : 35.35);
   const [cost, setCost] = useState<'₪' | '₪₪' | '₪₪₪' | undefined>(undefined);
   const [hechsher, setHechsher] = useState('');
-  const [recommendationType, setRecommendationType] = useState<'official' | 'user'>('user');
   const [description, setDescription] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [phone, setPhone] = useState('');
@@ -67,7 +64,6 @@ export const PublicAddLocationModal: React.FC<PublicAddLocationModalProps> = ({
     setLocationName('');
     setCost(undefined);
     setHechsher('');
-    setRecommendationType('user');
     setDescription('');
     setWebsiteUrl('');
     setPhone('');
@@ -96,7 +92,7 @@ export const PublicAddLocationModal: React.FC<PublicAddLocationModalProps> = ({
       lng: isNaN(lng) ? 35.35 : lng,
       cost: cost || undefined,
       hechsher: hechsher.trim() || undefined,
-      recommendationType,
+      recommendationType: 'user',
       description: description.trim() || undefined,
       websiteUrl: websiteUrl.trim() || undefined,
       phone: phone.trim() || undefined,
@@ -174,40 +170,6 @@ export const PublicAddLocationModal: React.FC<PublicAddLocationModalProps> = ({
                 </span>
               </div>
 
-              {/* 1. Recommendation Type Selection */}
-              <div>
-                <label className="block text-xs font-semibold text-[#2C2724] mb-1.5 flex items-center gap-1.5">
-                  <Award className="w-3.5 h-3.5 text-[#C86446]" />
-                  <span>Recommendation Type</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRecommendationType('user')}
-                    className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-                      recommendationType === 'user'
-                        ? 'bg-[#5C6B47]/10 text-[#5C6B47] border-[#5C6B47] shadow-xs'
-                        : 'bg-[#FAF7F2] text-[#7B7268] border-[#E5DECE] hover:bg-[#EFECE6]'
-                    }`}
-                  >
-                    <UserCheck className="w-4 h-4" />
-                    <span>User Recommendation</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setRecommendationType('official')}
-                    className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-                      recommendationType === 'official'
-                        ? 'bg-[#C86446] text-white border-[#C86446] shadow-xs'
-                        : 'bg-[#FAF7F2] text-[#7B7268] border-[#E5DECE] hover:bg-[#EFECE6]'
-                    }`}
-                  >
-                    <Award className="w-4 h-4" />
-                    <span>Official Recommendation</span>
-                  </button>
-                </div>
-              </div>
 
               {/* 2. Place Name (Required) */}
               <div>

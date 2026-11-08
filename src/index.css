@@ -60,3 +60,13 @@
 html {
   scroll-behavior: smooth;
 }
+
+/* Ensure Leaflet popup directions button text is strictly white */
+.leaflet-container a.directions-btn,
+.leaflet-popup-content a.directions-btn,
+.leaflet-popup-content a.directions-btn span,
+.leaflet-popup-content a.directions-btn:hover,
+.leaflet-popup-content a.directions-btn:visited {
+  color: #ffffff !important;
+  text-decoration: none !important;
+}

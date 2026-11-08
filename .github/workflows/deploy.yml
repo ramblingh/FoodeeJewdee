@@ -1,10 +1,10 @@
+
 name: Deploy FoodeeJewdee
 
 on:
   push:
     branches:
       - main
-
   workflow_dispatch:
 
 permissions:
@@ -29,15 +29,17 @@ jobs:
         with:
           node-version: 22
 
-- name: Check package version
-  run: |
-    echo "BUILDING COMMIT:"
-    git rev-parse HEAD
-    echo "ESBUILD VERSION:"
-    node -p "require('./package.json').devDependencies.esbuild"
+      - name: Check package versions
+        run: |
+          echo "BUILDING COMMIT:"
+          git rev-parse HEAD
+          echo "ESBUILD VERSION:"
+          node -p "require('./package.json').devDependencies.esbuild"
+          echo "VITE VERSION:"
+          node -p "require('./package.json').dependencies.vite"
 
-- name: Install dependencies
-  run: npm install
+      - name: Install dependencies
+        run: npm install
 
       - name: Build website
         run: npm run build
@@ -52,4 +54,3 @@ jobs:
 
       - name: Deploy website
         uses: actions/deploy-pages@v4
-        

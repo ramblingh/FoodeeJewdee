@@ -1,0 +1,6 @@
+{
+  "name": "Foodie Jewdie",
+  "description": "Discover authentic food places across the north of Israel with an interactive map, distance and driving time filters, and administrative curation.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

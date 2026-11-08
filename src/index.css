@@ -1,0 +1,62 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@layer base {
+  :root {
+    font-family: 'Aptos', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: 'Risque', cursive, serif;
+    letter-spacing: 0.02em;
+  }
+}
+
+/* Custom rustic map styling */
+.leaflet-container {
+  font-family: inherit;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  background: #EFECE6;
+}
+
+/* Custom Marker Styling */
+.custom-pin-marker {
+  background: transparent;
+  border: none;
+}
+
+.pin-bubble {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+
+.pin-bubble:hover, .pin-bubble.active {
+  transform: scale(1.18) translateY(-4px);
+  z-index: 1000 !important;
+}
+
+/* Leaflet Popup customization */
+.leaflet-popup-content-wrapper {
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(44, 39, 36, 0.15), 0 8px 10px -6px rgba(44, 39, 36, 0.1);
+  border: 1px solid #E5DECE;
+  background-color: #FFFFFF;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.5;
+}
+
+.leaflet-popup-tip {
+  background: #FFFFFF;
+  border: 1px solid #E5DECE;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { FoodLocation, UserOrigin } from '../types';
 import { getGoogleMapsDirectionsUrl } from '../utils/geo';
-import { Navigation, Clock, MapPin, ExternalLink, Compass } from 'lucide-react';
+import { Navigation, Clock, MapPin, ExternalLink, Compass, Check } from 'lucide-react';
 
 interface NorthernMapProps {
   locations: FoodLocation[];
@@ -14,6 +14,9 @@ interface NorthernMapProps {
   onAdminCoordsSelected?: (lat: number, lng: number) => void;
   onCancelAdminPick?: () => void;
   adminSelectedCoords?: { lat: number; lng: number } | null;
+  suggestedAddress?: string | null;
+  onConfirmPickedCoords?: () => void;
+  onRepickCoords?: () => void;
   originPickMode?: boolean;
   onOriginCoordsSelected?: (lat: number, lng: number) => void;
   onCancelOriginPick?: () => void;
@@ -33,6 +36,9 @@ export const NorthernMap: React.FC<NorthernMapProps> = ({
   onAdminCoordsSelected,
   onCancelAdminPick,
   adminSelectedCoords,
+  suggestedAddress,
+  onConfirmPickedCoords,
+  onRepickCoords,
   originPickMode = false,
   onOriginCoordsSelected,
   onCancelOriginPick,
@@ -306,10 +312,10 @@ export const NorthernMap: React.FC<NorthernMapProps> = ({
             ${loc.distanceKm !== undefined ? `
               <div class="flex items-center justify-between text-xs py-1 border-t border-[#F0EBE1] text-[#2C2724] font-medium">
                 <span class="flex items-center gap-1 text-[#5C6B47]">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                  ~${loc.drivingMinutes} min drive
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                  Distance:
                 </span>
-                <span class="tabular-nums text-[#7B7268]">${loc.distanceKm} km away</span>
+                <span class="tabular-nums text-[#2C2724] font-bold">${loc.distanceKm} km away</span>
               </div>
             ` : ''}
 
@@ -395,11 +401,11 @@ export const NorthernMap: React.FC<NorthernMapProps> = ({
       {/* Map DOM Container */}
       <div ref={mapContainerRef} className="w-full h-full" />
 
-      {/* Admin Mode Overlay Banner */}
-      {adminClickMode && (
+      {/* Location Pick Banner (Before Tapping) */}
+      {adminClickMode && !adminSelectedCoords && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-emerald-800 text-white px-4 py-2.5 rounded-full shadow-2xl text-xs md:text-sm font-semibold flex items-center gap-2.5 border border-emerald-400">
           <Compass className="w-4 h-4 text-emerald-300 animate-spin" />
-          <span>Click anywhere on the map to set place location!</span>
+          <span>Tap anywhere on the map to place location pin!</span>
           {onCancelAdminPick && (
             <button
               onClick={(e) => {
@@ -411,6 +417,70 @@ export const NorthernMap: React.FC<NorthernMapProps> = ({
               Cancel
             </button>
           )}
+        </div>
+      )}
+
+      {/* Confirmation Popup / Card Overlay (After Tapping a Location) */}
+      {adminClickMode && adminSelectedCoords && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] w-[92%] max-w-md bg-white rounded-2xl shadow-2xl border border-[#E5DECE] p-4 text-[#2C2724] space-y-3 animate-in slide-in-from-bottom-4 duration-200">
+          <div className="flex items-start justify-between gap-2 border-b border-[#F0EBE1] pb-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                📍
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-[#2C2724] leading-tight">
+                  Confirm Pinned Location
+                </h4>
+                <p className="text-[11px] text-[#7B7268]">
+                  Is this the place position you want to use?
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#FAF7F2] p-3 rounded-xl border border-[#E5DECE] text-xs space-y-1">
+            <p className="font-bold text-[#2C2724] text-xs md:text-sm">
+              {suggestedAddress || `Coordinates: ${adminSelectedCoords.lat.toFixed(4)}, ${adminSelectedCoords.lng.toFixed(4)}`}
+            </p>
+            <p className="text-[11px] text-[#7B7268] font-mono">
+              Latitude: {adminSelectedCoords.lat.toFixed(5)}, Longitude: {adminSelectedCoords.lng.toFixed(5)}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-1 flex-wrap sm:flex-nowrap">
+            <div className="flex items-center gap-1.5">
+              {onRepickCoords && (
+                <button
+                  type="button"
+                  onClick={onRepickCoords}
+                  className="px-3 py-2 text-xs font-semibold text-[#524B43] hover:text-[#2C2724] bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors"
+                >
+                  Tap Another Spot
+                </button>
+              )}
+              {onCancelAdminPick && (
+                <button
+                  type="button"
+                  onClick={onCancelAdminPick}
+                  className="px-2.5 py-2 text-xs text-stone-500 hover:text-stone-800"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            {onConfirmPickedCoords && (
+              <button
+                type="button"
+                onClick={onConfirmPickedCoords}
+                className="py-2 px-4 text-xs md:text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0"
+              >
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>Confirm & Return to Form</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 

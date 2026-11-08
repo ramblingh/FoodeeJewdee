@@ -22,7 +22,9 @@
       ]
     },
     "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
     "noEmit": true
   },
+  "include": ["src/**/*", "firebase-applet-config.json"],
   "exclude": ["dist"]
 }

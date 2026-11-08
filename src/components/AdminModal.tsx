@@ -19,29 +19,34 @@ import {
   CheckCircle2,
   ThumbsDown,
   Star,
-  User,
+  User as UserIcon,
+  Database,
+  ArrowRight,
 } from 'lucide-react';
+import { User } from 'firebase/auth';
 
 interface AdminModalProps {
   isOpen: boolean;
   onClose: () => void;
   isAdminLoggedIn: boolean;
-  onLogin: (user: string, pass: string) => boolean;
+  adminUser?: User | null;
+  onLogin: (username: string, pass: string) => Promise<boolean>;
   onLogout: () => void;
-  onAddLocation: (locationData: Omit<FoodLocation, 'id' | 'createdAt' | 'addedByAdmin'>) => void;
-  onUpdateLocation?: (locationData: FoodLocation) => void;
+  onAddLocation: (locationData: Omit<FoodLocation, 'id' | 'createdAt' | 'addedByAdmin'>) => Promise<void> | void;
+  onUpdateLocation?: (locationData: FoodLocation) => Promise<void> | void;
   onTriggerMapPick: () => void;
   pendingCoords: { lat: number; lng: number } | null;
   suggestedAddress?: string | null;
   locations?: FoodLocation[];
-  onDeleteLocation?: (id: string) => void;
+  onDeleteLocation?: (id: string) => Promise<void> | void;
   editingLocation?: FoodLocation | null;
   onClearEditingLocation?: () => void;
   locationSuggestions?: LocationSuggestion[];
   editSuggestions?: EditSuggestion[];
-  onApproveLocationSuggestion?: (suggestion: LocationSuggestion) => void;
-  onRejectLocationSuggestion?: (id: string) => void;
-  onDismissEditSuggestion?: (id: string) => void;
+  onApproveLocationSuggestion?: (suggestion: LocationSuggestion) => Promise<void> | void;
+  onRejectLocationSuggestion?: (id: string) => Promise<void> | void;
+  onDismissEditSuggestion?: (id: string) => Promise<void> | void;
+  onMigrateLocalData?: () => Promise<{ added: number; skipped: number }>;
 }
 
 export const AdminModal: React.FC<AdminModalProps> = ({
@@ -64,19 +69,25 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onApproveLocationSuggestion,
   onRejectLocationSuggestion,
   onDismissEditSuggestion,
+  onMigrateLocalData,
 }) => {
-  // Tabs: 'add' | 'manage' | 'inbox'
-  const [activeTab, setActiveTab] = useState<'add' | 'manage' | 'inbox'>('add');
+  // Tabs: 'add' | 'manage' | 'inbox' | 'migrate'
+  const [activeTab, setActiveTab] = useState<'add' | 'manage' | 'inbox' | 'migrate'>('add');
   const [inboxSubTab, setInboxSubTab] = useState<'newPlaces' | 'edits'>('newPlaces');
   const [editingSuggestionId, setEditingSuggestionId] = useState<string | null>(null);
 
   // Currently editing location ID (null when creating a new location)
   const [editingLocationId, setEditingLocationId] = useState<string | null>(null);
 
-  // Login form state
+  // Login form state (Username & Password)
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
+  const [loginErrorDetails, setLoginErrorDetails] = useState<{
+    code?: string;
+    message: string;
+    isAuthSuccessAdminFailed?: boolean;
+  } | null>(null);
 
   // Add/Edit location form state
   const [name, setName] = useState('');
@@ -93,11 +104,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   const [formSuccess, setFormSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
 
-  // Delete confirmation state for management tab
+  // Delete confirmation state
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // Sync if pending coords changed from map click without wiping existing form entries
+  // Migration status state
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<{ added: number; skipped: number } | null>(null);
+
+  // Sync if pending coords changed from map click
   React.useEffect(() => {
     if (pendingCoords) {
       const roundedLat = Number(pendingCoords.lat.toFixed(5));
@@ -112,7 +128,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   }, [pendingCoords, suggestedAddress]);
 
-  // Start editing an existing location
   const handleStartEdit = (loc: FoodLocation) => {
     setEditingLocationId(loc.id);
     setName(loc.name);
@@ -129,7 +144,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setActiveTab('add');
   };
 
-  // Start editing from a user place suggestion
   const handleStartEditFromSuggestion = (sug: LocationSuggestion) => {
     setEditingSuggestionId(sug.id);
     setEditingLocationId(null);
@@ -147,7 +161,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setActiveTab('add');
   };
 
-  // React when editingLocation is supplied from parent
   React.useEffect(() => {
     if (editingLocation) {
       handleStartEdit(editingLocation);
@@ -169,19 +182,42 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     if (onClearEditingLocation) onClearEditingLocation();
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginError(null);
-    const success = onLogin(username.trim(), password.trim());
-    if (!success) {
-      setLoginError('Invalid credentials');
-    } else {
-      setUsername('');
-      setPassword('');
+    setLoginErrorDetails(null);
+    setIsSubmittingLogin(true);
+
+    try {
+      const success = await onLogin(username.trim(), password.trim());
+      if (!success) {
+        setLoginErrorDetails({
+          code: 'invalid-credentials',
+          message: 'Invalid credentials. Username must be "admin".',
+        });
+      } else {
+        setUsername('');
+        setPassword('');
+      }
+    } catch (err: any) {
+      const code = err.code || 'login-failed';
+      const message = err.message || 'Authentication failed.';
+      const isAuthSuccessAdminFailed =
+        code === 'admin-document-not-found' ||
+        code === 'permission-denied' ||
+        code === 'invalid-admin-role' ||
+        message.includes('Firebase Auth succeeded');
+
+      setLoginErrorDetails({
+        code,
+        message,
+        isAuthSuccessAdminFailed,
+      });
+    } finally {
+      setIsSubmittingLogin(false);
     }
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -194,12 +230,38 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       return;
     }
 
-    if (editingLocationId && onUpdateLocation) {
-      const existing = locations.find((l) => l.id === editingLocationId);
-      onUpdateLocation({
-        id: editingLocationId,
-        createdAt: existing?.createdAt || Date.now(),
-        addedByAdmin: true,
+    setIsSubmittingForm(true);
+
+    try {
+      if (editingLocationId && onUpdateLocation) {
+        const existing = locations.find((l) => l.id === editingLocationId);
+        await onUpdateLocation({
+          id: editingLocationId,
+          createdAt: existing?.createdAt || Date.now(),
+          addedByAdmin: true,
+          name: name.trim(),
+          locationName: locationName.trim() || `Coordinates: ${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+          lat: isNaN(lat) ? 32.95 : lat,
+          lng: isNaN(lng) ? 35.35 : lng,
+          cost: cost || undefined,
+          hechsher: hechsher.trim() || undefined,
+          recommendationType,
+          description: description.trim() || undefined,
+          websiteUrl: websiteUrl.trim() || undefined,
+          phone: phone.trim() || undefined,
+          openingHours: openingHours.trim() || undefined,
+        });
+
+        setFormSuccess(true);
+        setTimeout(() => {
+          setFormSuccess(false);
+          handleCancelEdit();
+          setActiveTab('manage');
+        }, 1100);
+        return;
+      }
+
+      await onAddLocation({
         name: name.trim(),
         locationName: locationName.trim() || `Coordinates: ${lat.toFixed(4)}, ${lng.toFixed(4)}`,
         lat: isNaN(lat) ? 32.95 : lat,
@@ -213,39 +275,35 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         openingHours: openingHours.trim() || undefined,
       });
 
+      if (editingSuggestionId && onRejectLocationSuggestion) {
+        await onRejectLocationSuggestion(editingSuggestionId);
+      }
+
       setFormSuccess(true);
       setTimeout(() => {
         setFormSuccess(false);
+        onClose();
         handleCancelEdit();
-        setActiveTab('manage');
       }, 1100);
-      return;
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to save location to Firestore.');
+    } finally {
+      setIsSubmittingForm(false);
     }
+  };
 
-    onAddLocation({
-      name: name.trim(),
-      locationName: locationName.trim() || `Coordinates: ${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-      lat: isNaN(lat) ? 32.95 : lat,
-      lng: isNaN(lng) ? 35.35 : lng,
-      cost: cost || undefined,
-      hechsher: hechsher.trim() || undefined,
-      recommendationType,
-      description: description.trim() || undefined,
-      websiteUrl: websiteUrl.trim() || undefined,
-      phone: phone.trim() || undefined,
-      openingHours: openingHours.trim() || undefined,
-    });
-
-    if (editingSuggestionId && onRejectLocationSuggestion) {
-      onRejectLocationSuggestion(editingSuggestionId);
+  const handleRunMigration = async () => {
+    if (!onMigrateLocalData) return;
+    setIsMigrating(true);
+    setMigrationResult(null);
+    try {
+      const res = await onMigrateLocalData();
+      setMigrationResult(res);
+    } catch (err: any) {
+      alert(`Migration error: ${err.message || String(err)}`);
+    } finally {
+      setIsMigrating(false);
     }
-
-    setFormSuccess(true);
-    setTimeout(() => {
-      setFormSuccess(false);
-      onClose();
-      handleCancelEdit();
-    }, 1100);
   };
 
   return (
@@ -266,7 +324,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 {isAdminLoggedIn ? 'Administrator Portal' : 'Admin Login'}
               </h2>
               <p className="text-xs text-[#7B7268]">
-                {isAdminLoggedIn ? 'Manage, edit and add food locations' : 'Enter admin credentials to continue'}
+                {isAdminLoggedIn
+                  ? 'Signed in as Administrator (Firestore Verified)'
+                  : 'Enter administrator credentials'}
               </p>
             </div>
           </div>
@@ -281,18 +341,52 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1">
           {!isAdminLoggedIn ? (
-            /* Login Form */
+            /* Username / Password Login Form */
             <form onSubmit={handleLoginSubmit} className="max-w-md mx-auto space-y-4 py-4">
               <div className="text-center space-y-1 mb-6">
                 <p className="text-sm text-[#524B43]">
-                  Enter administrator credentials to add, edit or delete places.
+                  Enter administrator credentials to manage food locations.
                 </p>
               </div>
 
-              {loginError && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{loginError}</span>
+              {loginErrorDetails && (
+                <div
+                  className={`p-4 rounded-xl text-xs space-y-2 border ${
+                    loginErrorDetails.isAuthSuccessAdminFailed
+                      ? 'bg-amber-50 border-amber-300 text-amber-950'
+                      : 'bg-red-50 border-red-200 text-red-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                    <span>
+                      {loginErrorDetails.isAuthSuccessAdminFailed
+                        ? 'Authentication Succeeded, but Admin Authorization Failed'
+                        : 'Login Failed'}
+                    </span>
+                  </div>
+
+                  {loginErrorDetails.code && (
+                    <div className="flex items-center gap-1 font-mono text-[11px]">
+                      <span className="font-semibold text-[#524B43]">Error Code:</span>
+                      <span className="bg-black/10 px-2 py-0.5 rounded font-bold text-[#2C2724]">
+                        {loginErrorDetails.code}
+                      </span>
+                    </div>
+                  )}
+
+                  <p className="text-xs leading-relaxed font-medium">{loginErrorDetails.message}</p>
+
+                  {loginErrorDetails.isAuthSuccessAdminFailed && (
+                    <div className="pt-2 border-t border-amber-200/80 text-[11px] text-amber-900 space-y-1">
+                      <p className="font-semibold">Diagnostic Troubleshooting Checklist:</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-amber-800">
+                        <li>Ensure user <code className="bg-amber-100 px-1 rounded font-mono">admin@foodiejewdie.com</code> exists in Firebase Auth.</li>
+                        <li>Ensure document exists at path: <code className="bg-amber-100 px-1 rounded font-mono">/admins/2Mq1JKwE2zRn26H4DEEgRj3zPGF3</code></li>
+                        <li>Ensure document contains string field: <code className="bg-amber-100 px-1 rounded font-mono">role: "admin"</code> (lowercase)</li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -305,7 +399,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Admin"
+                  placeholder="admin"
                   className="w-full px-3.5 py-2.5 bg-[#FAF7F2] border border-[#E5DECE] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#C86446]/30 focus:border-[#C86446]"
                 />
               </div>
@@ -327,9 +421,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full py-2.5 px-4 bg-[#C86446] hover:bg-[#A84F35] text-white rounded-xl text-sm font-semibold shadow-xs transition-colors"
+                  disabled={isSubmittingLogin}
+                  className="w-full py-2.5 px-4 bg-[#C86446] hover:bg-[#A84F35] text-white rounded-xl text-sm font-semibold shadow-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  Log In
+                  {isSubmittingLogin ? (
+                    <span>Authenticating...</span>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Log In</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -337,8 +439,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             /* Admin Logged-In Panel */
             <div className="space-y-5">
               {/* Top Bar with Tabs and Logout */}
-              <div className="flex items-center justify-between pb-3 border-b border-[#F0EBE1]">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between pb-3 border-b border-[#F0EBE1] flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     type="button"
                     onClick={() => {
@@ -385,7 +487,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     }`}
                   >
                     <List className="w-3.5 h-3.5" />
-                    <span>Manage & Edit ({locations.length})</span>
+                    <span>Manage ({locations.length})</span>
                   </button>
 
                   <button
@@ -414,6 +516,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       </span>
                     )}
                   </button>
+
+                  {onMigrateLocalData && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('migrate')}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                        activeTab === 'migrate'
+                          ? 'bg-[#C86446] text-white shadow-xs'
+                          : 'bg-[#FAF7F2] text-[#524B43] hover:bg-[#EFECE6]'
+                      }`}
+                    >
+                      <Database className="w-3.5 h-3.5" />
+                      <span>Migration</span>
+                    </button>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -448,8 +565,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       <Check className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>
                         {editingLocationId
-                          ? 'Changes saved successfully! The map and directory have updated.'
-                          : 'Place added successfully! The map and directory have updated.'}
+                          ? 'Changes saved to Cloud Firestore! The map and directory have updated.'
+                          : 'Place saved to Cloud Firestore! The map and directory have updated.'}
                       </span>
                     </div>
                   )}
@@ -495,7 +612,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         }`}
                       >
                         <div className={`p-1.5 rounded-lg shrink-0 ${recommendationType === 'user' ? 'bg-[#5C6B47] text-white' : 'bg-stone-200 text-[#7B7268]'}`}>
-                          <User className="w-4 h-4" />
+                          <UserIcon className="w-4 h-4" />
                         </div>
                         <div>
                           <p className="text-xs font-bold text-[#2C2724]">User Recommendation</p>
@@ -505,7 +622,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </div>
                   </div>
 
-                  {/* 1. Name (Required) */}
+                  {/* 1. Name */}
                   <div>
                     <label className="block text-xs font-semibold text-[#2C2724] mb-1">
                       Name <span className="text-red-500 font-bold">*</span>
@@ -520,12 +637,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     />
                   </div>
 
-                  {/* 2. Address / Location on the Map (Required) */}
+                  {/* 2. Address / Location on Map */}
                   <div className="p-3.5 bg-[#FAF7F2] rounded-xl border border-[#E5DECE] space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-[#2C2724] flex items-center gap-1.5">
                         <MapPin className="w-4 h-4 text-[#C86446]" />
-                        <span>Address / Location on the Map</span>
+                        <span>Address / Location on Map</span>
                         <span className="text-red-500 font-bold">*</span>
                       </label>
                       <button
@@ -581,7 +698,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </div>
                   </div>
 
-                  {/* 3. Cost (1/2/3 shekel symbols) - Optional */}
+                  {/* 3. Cost */}
                   <div>
                     <label className="block text-xs font-semibold text-[#2C2724] mb-1.5">
                       Cost <span className="text-[#7B7268] font-normal">(Optional)</span>
@@ -615,7 +732,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </div>
                   </div>
 
-                  {/* 4. Hechsher (Kosher Certification) - Optional */}
+                  {/* 4. Hechsher */}
                   <div>
                     <label className="block text-xs font-semibold text-[#2C2724] mb-1">
                       Hechsher (Kosher Certification) <span className="text-[#7B7268] font-normal">(Optional)</span>
@@ -629,7 +746,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     />
                   </div>
 
-                  {/* 5. Description - Optional */}
+                  {/* 5. Description */}
                   <div>
                     <label className="block text-xs font-semibold text-[#2C2724] mb-1">
                       Description <span className="text-[#7B7268] font-normal">(Optional)</span>
@@ -643,7 +760,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     />
                   </div>
 
-                  {/* 6. Social Media Link or Website - Optional */}
+                  {/* 6. Website / Social */}
                   <div>
                     <label className="block text-xs font-semibold text-[#2C2724] mb-1">
                       Social Media Link or Website <span className="text-[#7B7268] font-normal">(Optional)</span>
@@ -660,7 +777,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </div>
                   </div>
 
-                  {/* 7 & 8. Phone Number & Opening Hours - Optional */}
+                  {/* 7 & 8. Phone & Hours */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-[#2C2724] mb-1">
@@ -689,7 +806,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           value={openingHours}
                           onChange={(e) => setOpeningHours(e.target.value)}
                           placeholder="Sun–Sat: 10:00 – 21:00"
-                          className="w-full pl-9 pr-3 py-2 bg-[#FAF7F2] border border-[#E5DECE] rounded-xl text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-[#C86446]/30 focus:border-[#C86446]"
+                          className="w-full px-9 py-2 bg-[#FAF7F2] border border-[#E5DECE] rounded-xl text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-[#C86446]/30 focus:border-[#C86446]"
                         />
                       </div>
                     </div>
@@ -708,10 +825,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         </button>
                         <button
                           type="submit"
-                          className="py-2.5 px-6 bg-[#C86446] hover:bg-[#A84F35] text-white text-xs md:text-sm font-semibold rounded-xl shadow-md transition-all flex items-center gap-2"
+                          disabled={isSubmittingForm}
+                          className="py-2.5 px-6 bg-[#C86446] hover:bg-[#A84F35] text-white text-xs md:text-sm font-semibold rounded-xl shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
                         >
                           <Check className="w-4 h-4" />
-                          <span>Save Changes</span>
+                          <span>{isSubmittingForm ? 'Saving to Firestore...' : 'Save Changes'}</span>
                         </button>
                       </>
                     ) : (
@@ -725,10 +843,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         </button>
                         <button
                           type="submit"
-                          className="py-2.5 px-6 bg-[#C86446] hover:bg-[#A84F35] text-white text-xs md:text-sm font-semibold rounded-xl shadow-md transition-all flex items-center gap-2"
+                          disabled={isSubmittingForm}
+                          className="py-2.5 px-6 bg-[#C86446] hover:bg-[#A84F35] text-white text-xs md:text-sm font-semibold rounded-xl shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
                         >
                           <PlusCircle className="w-4 h-4" />
-                          <span>Add Location</span>
+                          <span>{isSubmittingForm ? 'Saving to Firestore...' : 'Add Location'}</span>
                         </button>
                       </>
                     )}
@@ -736,11 +855,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 </form>
               )}
 
-              {/* TAB 2: MANAGE, EDIT & DELETE LOCATIONS */}
+              {/* TAB 2: MANAGE LOCATIONS */}
               {activeTab === 'manage' && (
                 <div className="space-y-3">
                   <p className="text-xs text-[#7B7268]">
-                    Click <strong>Edit</strong> to modify all details (name, map coords, type, hours, hechsher), or <strong>Delete</strong> to remove.
+                    Click <strong>Edit</strong> to modify details (stored in Cloud Firestore), or <strong>Delete</strong> to remove.
                   </p>
 
                   <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
@@ -760,7 +879,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   : 'bg-[#C86446]/10 text-[#C86446] border border-[#C86446]/20'
                               }`}
                             >
-                              {isUserRec ? <User className="w-3 h-3" /> : <Star className="w-3 h-3 fill-current" />}
+                              {isUserRec ? <UserIcon className="w-3 h-3" /> : <Star className="w-3 h-3 fill-current" />}
                               {isUserRec ? 'User' : 'Official'}
                             </span>
                             <div className="min-w-0">
@@ -778,7 +897,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                               type="button"
                               onClick={() => handleStartEdit(loc)}
                               className="px-2.5 py-1.5 text-xs text-[#2C2724] bg-white hover:bg-stone-100 border border-[#E5DECE] rounded-lg flex items-center gap-1 transition-colors font-medium shadow-xs"
-                              title="Edit all details of this place"
                             >
                               <Pencil className="w-3.5 h-3.5 text-[#C86446]" />
                               <span>Edit</span>
@@ -788,9 +906,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (onDeleteLocation) {
-                                      onDeleteLocation(loc.id);
+                                      await onDeleteLocation(loc.id);
                                     }
                                     setConfirmDeleteId(null);
                                   }}
@@ -824,10 +942,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 </div>
               )}
 
-              {/* TAB 3: ADMIN INBOX FOR SUGGESTIONS */}
+              {/* TAB 3: ADMIN INBOX */}
               {activeTab === 'inbox' && (
                 <div className="space-y-4">
-                  {/* Sub-tabs for Inbox */}
                   <div className="flex items-center gap-2 border-b border-[#F0EBE1] pb-2">
                     <button
                       type="button"
@@ -862,7 +979,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </button>
                   </div>
 
-                  {/* SUB-TAB 1: NEW PLACE SUGGESTIONS */}
                   {inboxSubTab === 'newPlaces' && (
                     <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
                       {locationSuggestions.filter((s) => s.status === 'pending').length === 0 ? (
@@ -870,7 +986,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
                           <h4 className="font-semibold text-sm text-[#2C2724]">All Caught Up!</h4>
                           <p className="text-xs text-[#7B7268]">
-                            No pending new place suggestions from users in the inbox.
+                            No pending place suggestions in Firestore inbox.
                           </p>
                         </div>
                       ) : (
@@ -893,7 +1009,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                             : 'bg-[#C86446]/10 text-[#C86446] border border-[#C86446]/20'
                                         }`}
                                       >
-                                        {isUserRec ? <User className="w-3 h-3" /> : <Star className="w-3 h-3 fill-current" />}
+                                        {isUserRec ? <UserIcon className="w-3 h-3" /> : <Star className="w-3 h-3 fill-current" />}
                                         {isUserRec ? 'User Rec' : 'Official Rec'}
                                       </span>
                                       <h4 className="font-bold text-sm text-[#2C2724]">
@@ -919,13 +1035,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                         {sug.description}
                                       </p>
                                     )}
-                                    {(sug.phone || sug.openingHours || sug.websiteUrl) && (
-                                      <div className="text-[11px] text-[#7B7268] flex items-center gap-3 flex-wrap pt-0.5">
-                                        {sug.openingHours && <span>🕒 {sug.openingHours}</span>}
-                                        {sug.phone && <span>📞 {sug.phone}</span>}
-                                        {sug.websiteUrl && <span>🌐 Has Web Link</span>}
-                                      </div>
-                                    )}
                                   </div>
 
                                   <span className="text-[10px] text-[#7B7268] shrink-0 bg-white px-2 py-0.5 rounded border border-[#E5DECE]">
@@ -933,16 +1042,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   </span>
                                 </div>
 
-                                {/* Action Buttons for Suggestion */}
                                 <div className="pt-2 border-t border-[#E5DECE] flex items-center justify-end gap-2 flex-wrap">
                                   <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={async () => {
                                       if (onRejectLocationSuggestion) {
-                                        onRejectLocationSuggestion(sug.id);
+                                        await onRejectLocationSuggestion(sug.id);
                                       }
                                     }}
-                                    className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 border border-red-200 rounded-lg flex items-center gap-1 transition-colors font-medium"
+                                    className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 border border-red-200 rounded-lg flex items-center gap-1 font-medium"
                                   >
                                     <ThumbsDown className="w-3.5 h-3.5" />
                                     <span>Reject</span>
@@ -951,23 +1059,23 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => handleStartEditFromSuggestion(sug)}
-                                    className="px-3 py-1.5 text-xs text-[#2C2724] bg-white hover:bg-stone-100 border border-[#E5DECE] rounded-lg flex items-center gap-1.5 transition-colors font-semibold shadow-xs"
+                                    className="px-3 py-1.5 text-xs text-[#2C2724] bg-[#FAF7F2] hover:bg-stone-100 border border-[#E5DECE] rounded-lg flex items-center gap-1.5 font-semibold shadow-xs"
                                   >
                                     <Pencil className="w-3.5 h-3.5 text-[#C86446]" />
-                                    <span>Edit Details First</span>
+                                    <span>Edit First</span>
                                   </button>
 
                                   <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={async () => {
                                       if (onApproveLocationSuggestion) {
-                                        onApproveLocationSuggestion(sug);
+                                        await onApproveLocationSuggestion(sug);
                                       }
                                     }}
                                     className="px-3.5 py-1.5 text-xs font-semibold text-white bg-[#C86446] hover:bg-[#A84F35] rounded-lg shadow-xs flex items-center gap-1.5 transition-colors"
                                   >
                                     <Check className="w-3.5 h-3.5" />
-                                    <span>Confirm & Add to Map</span>
+                                    <span>Confirm & Publish</span>
                                   </button>
                                 </div>
                               </div>
@@ -977,7 +1085,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </div>
                   )}
 
-                  {/* SUB-TAB 2: SUGGESTED EDITS */}
                   {inboxSubTab === 'edits' && (
                     <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
                       {editSuggestions.filter((s) => s.status === 'pending').length === 0 ? (
@@ -985,7 +1092,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
                           <h4 className="font-semibold text-sm text-[#2C2724]">No Edit Suggestions</h4>
                           <p className="text-xs text-[#7B7268]">
-                            No user reported edits or closures pending in the inbox.
+                            No user reported edits pending in Firestore inbox.
                           </p>
                         </div>
                       ) : (
@@ -1027,20 +1134,19 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                 </div>
                               ) : (
                                 <p className="text-xs text-[#7B7268] italic">
-                                  No additional text notes provided.
+                                  No additional notes provided.
                                 </p>
                               )}
 
-                              {/* Action Buttons for Edit Suggestion */}
                               <div className="pt-2 border-t border-[#E5DECE] flex items-center justify-end gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (onDismissEditSuggestion) {
-                                      onDismissEditSuggestion(edit.id);
+                                      await onDismissEditSuggestion(edit.id);
                                     }
                                   }}
-                                  className="px-3 py-1.5 text-xs text-[#524B43] hover:bg-stone-100 border border-[#E5DECE] rounded-lg transition-colors font-medium"
+                                  className="px-3 py-1.5 text-xs text-[#524B43] hover:bg-stone-100 border border-[#E5DECE] rounded-lg font-medium"
                                 >
                                   Dismiss
                                 </button>
@@ -1055,7 +1161,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                       setActiveTab('manage');
                                     }
                                   }}
-                                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-[#C86446] hover:bg-[#A84F35] rounded-lg shadow-xs flex items-center gap-1.5 transition-colors"
+                                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-[#C86446] hover:bg-[#A84F35] rounded-lg shadow-xs flex items-center gap-1.5"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                   <span>Edit Location</span>
@@ -1066,6 +1172,57 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       )}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* TAB 4: MIGRATION TAB */}
+              {activeTab === 'migrate' && (
+                <div className="space-y-4 py-2">
+                  <div className="p-4 bg-[#FAF7F2] rounded-xl border border-[#E5DECE] space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#C86446]/10 text-[#C86446] flex items-center justify-center shrink-0">
+                        <Database className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-[#2C2724]">
+                          Safe One-Time LocalStorage Migration
+                        </h4>
+                        <p className="text-xs text-[#7B7268]">
+                          Migrate existing restaurant records from browser storage into Cloud Firestore.
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-[#524B43] leading-relaxed">
+                      This safe process inspects items currently stored in your browser's local cache.
+                      It checks Cloud Firestore and uploads any missing locations without overwriting or duplicating existing records.
+                    </p>
+
+                    {migrationResult && (
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs space-y-1">
+                        <p className="font-bold flex items-center gap-1.5">
+                          <Check className="w-4 h-4 text-emerald-600" />
+                          <span>Migration Complete!</span>
+                        </p>
+                        <p>
+                          Added <strong>{migrationResult.added}</strong> new locations to Firestore.
+                          Skipped <strong>{migrationResult.skipped}</strong> already existing duplicate records.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleRunMigration}
+                        disabled={isMigrating}
+                        className="px-5 py-2.5 bg-[#C86446] hover:bg-[#A84F35] text-white text-xs font-semibold rounded-xl shadow-xs flex items-center gap-2 disabled:opacity-50 transition-colors"
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                        <span>{isMigrating ? 'Migrating Data...' : 'Run One-Time Migration'}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

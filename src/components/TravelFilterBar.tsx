@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import { UserOrigin } from '../types';
 import { geocodeLocationName } from '../utils/geo';
-import { Search, MapPin, Navigation, Clock, RotateCcw, Crosshair, Compass, Loader2 } from 'lucide-react';
+import { Search, MapPin, Navigation, RotateCcw, Crosshair, Compass, Loader2 } from 'lucide-react';
 
 interface TravelFilterBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   maxDistanceKm: number | null;
   onMaxDistanceChange: (val: number | null) => void;
-  maxDrivingMinutes: number | null;
-  onMaxDrivingMinutesChange: (val: number | null) => void;
   userOrigin: UserOrigin | null;
   onSetUserOrigin: (origin: UserOrigin | null) => void;
   onToggleMapPickOrigin: () => void;
@@ -24,8 +22,6 @@ export const TravelFilterBar: React.FC<TravelFilterBarProps> = ({
   onSearchChange,
   maxDistanceKm,
   onMaxDistanceChange,
-  maxDrivingMinutes,
-  onMaxDrivingMinutesChange,
   userOrigin,
   onSetUserOrigin,
   onToggleMapPickOrigin,
@@ -100,10 +96,9 @@ export const TravelFilterBar: React.FC<TravelFilterBarProps> = ({
   const handleResetFilters = () => {
     onSearchChange('');
     onMaxDistanceChange(null);
-    onMaxDrivingMinutesChange(null);
   };
 
-  const isFiltered = Boolean(searchQuery) || maxDistanceKm !== null || maxDrivingMinutes !== null;
+  const isFiltered = Boolean(searchQuery) || maxDistanceKm !== null;
 
   return (
     <div className="bg-white rounded-2xl border border-[#E5DECE] shadow-sm p-4 md:p-6 space-y-4">
@@ -227,84 +222,44 @@ export const TravelFilterBar: React.FC<TravelFilterBarProps> = ({
         </div>
       </div>
 
-      {/* 3. Distance or Time Radius */}
-      <div className="pt-3 border-t border-[#F0EBE1] grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
-        {/* Distance Radius Slider */}
-        <div className="md:col-span-6 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-[#2C2724] flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-[#C86446]" />
-              <span>Distance Radius</span>
-              <span className="text-[10px] text-[#7B7268] font-normal">(circle on map)</span>
-            </span>
-            <span className="font-bold text-[#C86446] tabular-nums">
-              {maxDistanceKm !== null ? `Within ${maxDistanceKm} km` : 'Any (50 km)'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <input
-              type="range"
-              min="5"
-              max="50"
-              step="5"
-              value={maxDistanceKm ?? 50}
-              onChange={(e) => onMaxDistanceChange(Number(e.target.value))}
-              className="w-full accent-[#C86446] cursor-pointer h-1.5 bg-[#E5DECE] rounded-lg"
-            />
-            {maxDistanceKm !== null && (
-              <button
-                onClick={() => onMaxDistanceChange(null)}
-                className="text-[11px] text-[#7B7268] hover:text-[#2C2724] whitespace-nowrap px-1.5 py-0.5 border border-[#E5DECE] rounded bg-[#FAF7F2]"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-          <div className="flex justify-between text-[10px] text-[#9E9589] px-0.5">
-            <span>5 km</span>
-            <span>25 km</span>
-            <span>50 km</span>
-          </div>
+      {/* 3. Distance Radius Filter */}
+      <div className="pt-3 border-t border-[#F0EBE1] space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-[#2C2724] flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-[#C86446]" />
+            <span>Distance Filter</span>
+            <span className="text-[10px] text-[#7B7268] font-normal">(only show spots within circle radius)</span>
+          </span>
+          <span className="font-bold text-[#C86446] tabular-nums">
+            {maxDistanceKm !== null ? `Within ${maxDistanceKm} km` : 'Any Distance (Up to 50 km)'}
+          </span>
         </div>
 
-        {/* Driving Time Selector Chips */}
-        <div className="md:col-span-6 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-[#2C2724] flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-[#5C6B47]" />
-              <span>Time Radius</span>
-            </span>
-            <span className="font-bold text-[#5C6B47] tabular-nums">
-              {maxDrivingMinutes !== null ? `≤ ${maxDrivingMinutes} min` : 'Any time'}
-            </span>
-          </div>
-
-          {/* Clean Segmented Button Selector */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-            {[
-              { label: 'Any', value: null },
-              { label: '≤ 15 min', value: 15 },
-              { label: '≤ 30 min', value: 30 },
-              { label: '≤ 45 min', value: 45 },
-              { label: '≤ 60 min', value: 60 },
-            ].map((chip) => {
-              const active = maxDrivingMinutes === chip.value;
-              return (
-                <button
-                  key={chip.label}
-                  onClick={() => onMaxDrivingMinutesChange(chip.value)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 ${
-                    active
-                      ? 'bg-[#5C6B47] text-white shadow-sm'
-                      : 'bg-[#FAF7F2] text-[#524B43] hover:bg-[#EFECE6] border border-[#E5DECE]'
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              );
-            })}
-          </div>
+        <div className="flex items-center gap-3">
+          <input
+            type="range"
+            min="5"
+            max="50"
+            step="5"
+            value={maxDistanceKm ?? 50}
+            onChange={(e) => onMaxDistanceChange(Number(e.target.value))}
+            className="w-full accent-[#C86446] cursor-pointer h-1.5 bg-[#E5DECE] rounded-lg"
+          />
+          {maxDistanceKm !== null && (
+            <button
+              onClick={() => onMaxDistanceChange(null)}
+              className="text-[11px] text-[#7B7268] hover:text-[#2C2724] whitespace-nowrap px-2 py-0.5 border border-[#E5DECE] rounded-lg bg-[#FAF7F2] font-semibold"
+            >
+              Reset Distance
+            </button>
+          )}
+        </div>
+        <div className="flex justify-between text-[10px] text-[#9E9589] px-0.5 font-medium">
+          <span>5 km</span>
+          <span>15 km</span>
+          <span>25 km</span>
+          <span>35 km</span>
+          <span>50 km</span>
         </div>
       </div>
 

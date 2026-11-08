@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "Restaurant": {
+      "title": "Restaurant",
+      "description": "Approved food location listing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200, "minLength": 1 },
+        "locationName": { "type": "string", "maxLength": 300, "minLength": 1 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "cost": { "type": "string", "enum": ["₪", "₪₪", "₪₪₪"] },
+        "hechsher": { "type": "string", "maxLength": 100 },
+        "recommendationType": { "type": "string", "enum": ["official", "user"] },
+        "description": { "type": "string", "maxLength": 2000 },
+        "websiteUrl": { "type": "string", "maxLength": 500 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "openingHours": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "number" },
+        "addedByAdmin": { "type": "boolean" }
+      },
+      "required": ["name", "locationName", "lat", "lng", "createdAt"]
+    },
+    "Suggestion": {
+      "title": "Suggestion",
+      "description": "Public venue submission or edit suggestion awaiting administrator review",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200, "minLength": 1 },
+        "locationName": { "type": "string", "maxLength": 300, "minLength": 1 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "cost": { "type": "string", "enum": ["₪", "₪₪", "₪₪₪"] },
+        "hechsher": { "type": "string", "maxLength": 100 },
+        "recommendationType": { "type": "string", "enum": ["official", "user"] },
+        "description": { "type": "string", "maxLength": 2000 },
+        "websiteUrl": { "type": "string", "maxLength": 500 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "openingHours": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "dismissed"] },
+        "createdAt": { "type": "number" },
+        "submitterInfo": { "type": "string", "maxLength": 500 },
+        "adminNotes": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["name", "locationName", "lat", "lng", "status", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered user account profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 200 },
+        "displayName": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "email"]
+    },
+    "AdminAccount": {
+      "title": "AdminAccount",
+      "description": "Authorized administrator record",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 200 },
+        "role": { "type": "string", "enum": ["admin"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "SettingsConfig": {
+      "title": "SettingsConfig",
+      "description": "Website options and category settings",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string", "maxLength": 200 },
+        "updatedAt": { "type": "number" }
+      }
+    }
+  },
+  "firestore": {
+    "/restaurants/{restaurantId}": {
+      "schema": { "$ref": "#/entities/Restaurant" },
+      "description": "Collection of approved restaurant entries visible to all site visitors"
+    },
+    "/suggestions/{suggestionId}": {
+      "schema": { "$ref": "#/entities/Suggestion" },
+      "description": "Collection of public suggestions and requested edits awaiting admin review"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile collection"
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminAccount" },
+      "description": "Authorized administrator accounts list"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SettingsConfig" },
+      "description": "Application configuration settings"
+    }
+  }
+}

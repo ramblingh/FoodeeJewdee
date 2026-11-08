@@ -110,10 +110,12 @@ export const PublicAddLocationModal: React.FC<PublicAddLocationModalProps> = ({
     }, 1600);
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs transition-opacity duration-200 ${
+        isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none hidden'
+      }`}
+    >
       <div className="bg-white rounded-2xl border border-[#E5DECE] shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-[#FAF7F2] px-6 py-4 border-b border-[#E5DECE] flex items-center justify-between shrink-0">

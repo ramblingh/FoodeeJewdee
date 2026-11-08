@@ -41,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => onScrollToSection('filter-section')}
             className="hover:text-[#C86446] transition-colors whitespace-nowrap shrink-0"
           >
-            Driving Time Filter
+            Distance Filter
           </button>
           <button
             onClick={() => onScrollToSection('directory-section')}

@@ -42,8 +42,8 @@ export const LocationList: React.FC<LocationListProps> = ({
   onSuggestEdit,
   onScrollToMap,
 }) => {
-  // Sort state: 'newest' | 'distance' | 'time'
-  const [sortBy, setSortBy] = useState<'newest' | 'distance' | 'time'>('newest');
+  // Sort state: 'newest' | 'distance'
+  const [sortBy, setSortBy] = useState<'newest' | 'distance'>('newest');
 
   // Inline confirmation state for deletion without window.confirm
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -55,11 +55,6 @@ export const LocationList: React.FC<LocationListProps> = ({
         const distA = a.distanceKm ?? 99999;
         const distB = b.distanceKm ?? 99999;
         return distA - distB;
-      }
-      if (sortBy === 'time') {
-        const timeA = a.drivingMinutes ?? 99999;
-        const timeB = b.drivingMinutes ?? 99999;
-        return timeA - timeB;
       }
       // default 'newest'
       return (b.createdAt || 0) - (a.createdAt || 0);
@@ -74,7 +69,7 @@ export const LocationList: React.FC<LocationListProps> = ({
         </div>
         <h3 className="font-display font-bold text-lg text-[#2C2724]">No food places found</h3>
         <p className="text-xs md:text-sm text-[#7B7268]">
-          Try widening your distance radius, adjusting your max driving time, or searching for a different place.
+          Try widening your distance radius or searching for a different place.
         </p>
       </div>
     );
@@ -89,7 +84,7 @@ export const LocationList: React.FC<LocationListProps> = ({
             Food Places in Northern Israel
           </h2>
           <p className="text-xs text-[#7B7268]">
-            Click any place to inspect on the map or launch Google Maps driving directions.
+            Click any place to inspect on the map or launch Google Maps directions.
           </p>
         </div>
 
@@ -100,12 +95,11 @@ export const LocationList: React.FC<LocationListProps> = ({
             <span className="text-xs font-semibold text-[#524B43]">Sort by:</span>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'newest' | 'distance' | 'time')}
+              onChange={(e) => setSortBy(e.target.value as 'newest' | 'distance')}
               className="text-xs font-bold text-[#2C2724] bg-transparent focus:outline-none cursor-pointer pr-1"
             >
               <option value="newest">Newly Added</option>
               <option value="distance">Distance (Closest first)</option>
-              <option value="time">Driving Time (Fastest first)</option>
             </select>
           </div>
 
@@ -197,15 +191,11 @@ export const LocationList: React.FC<LocationListProps> = ({
                   )}
                 </div>
 
-                {/* Distance & Driving Time */}
+                {/* Distance */}
                 {loc.distanceKm !== undefined && (
-                  <div className="flex items-center gap-2.5 text-xs font-semibold text-[#5C6B47] bg-[#FAF7F2] px-2.5 py-1 rounded-lg border border-[#E5DECE] w-fit">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-[#C86446]" />
-                      <span>~{loc.drivingMinutes} min drive</span>
-                    </span>
-                    <span className="text-[#E5DECE]">|</span>
-                    <span className="tabular-nums text-[#7B7268]">{loc.distanceKm} km away</span>
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[#5C6B47] bg-[#FAF7F2] px-2.5 py-1 rounded-lg border border-[#E5DECE] w-fit">
+                    <MapPin className="w-3.5 h-3.5 text-[#C86446]" />
+                    <span className="tabular-nums text-[#2C2724] font-bold">{loc.distanceKm} km away</span>
                   </div>
                 )}
 

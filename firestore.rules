@@ -1,0 +1,96 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all safety rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Server-side Admin check against trusted /admins/{uid} collection
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity validation helpers
+    function isValidRestaurant(data) {
+      return data.keys().hasAll(['name', 'locationName', 'lat', 'lng']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.locationName is string && data.locationName.size() > 0 && data.locationName.size() <= 300 &&
+             data.lat is number && data.lng is number;
+    }
+
+    function isValidSuggestion(data) {
+      return data.keys().hasAll(['name', 'locationName', 'lat', 'lng', 'status']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.locationName is string && data.locationName.size() > 0 && data.locationName.size() <= 300 &&
+             data.lat is number && data.lng is number &&
+             data.status is string && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected' || data.status == 'dismissed');
+    }
+
+    // 1. RESTAURANTS COLLECTION
+    // Public read access for all site visitors.
+    // Writes restricted exclusively to authenticated administrators.
+    match /restaurants/{restaurantId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidRestaurant(incoming());
+      allow update: if isAdmin() && isValidRestaurant(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 2. SUGGESTIONS COLLECTION
+    // Public can submit new pending suggestions.
+    // Only authorized administrators can view, update (approve/reject), or delete suggestions.
+    match /suggestions/{suggestionId} {
+      allow read: if isAdmin();
+      allow create: if isValidSuggestion(incoming()) && incoming().status == 'pending';
+      allow update: if isAdmin() && isValidSuggestion(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 3. USERS COLLECTION
+    // Users can read/write their own profile; admins can read all profiles.
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId);
+      allow delete: if isAdmin();
+    }
+
+    // 4. ADMINS COLLECTION
+    // Server-side source of truth for admin privileges.
+    // Users cannot write or escalate privileges to this collection.
+    match /admins/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false; // Must be managed via Firebase Console or Admin SDK
+    }
+
+    // 5. SETTINGS COLLECTION
+    // Public read for site config; write restricted to admins.
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

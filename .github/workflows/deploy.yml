@@ -30,8 +30,15 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install dependencies
-        run: npm install
+- name: Check package version
+  run: |
+    echo "BUILDING COMMIT:"
+    git rev-parse HEAD
+    echo "ESBUILD VERSION:"
+    node -p "require('./package.json').devDependencies.esbuild"
+
+- name: Install dependencies
+  run: npm install
 
       - name: Build website
         run: npm run build

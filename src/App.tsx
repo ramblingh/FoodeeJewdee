@@ -177,7 +177,7 @@ export default function App() {
     });
   }, [locationsWithTravelMetrics, searchQuery, maxDistanceKm]);
 
-  // Firebase Admin Login (Username "admin" -> internal auth admin@foodiejewdie.com)
+  // Firebase Admin Login (Username "admin" -> internal auth admin@foodeejewdee.co.uk)
   const handleAdminLogin = async (usernameInput: string, p: string): Promise<boolean> => {
     try {
       const { isAdmin } = await loginAdminWithUsername(usernameInput, p);

@@ -7,7 +7,7 @@ import {
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
-export const ADMIN_INTERNAL_EMAIL = 'admin@foodiejewdie.com';
+export const ADMIN_INTERNAL_EMAIL = 'admin@foodeejewdee.co.uk';
 
 export interface AdminPrivilegeResult {
   isAdmin: boolean;
@@ -59,7 +59,7 @@ export async function checkAdminPrivilege(uid: string): Promise<boolean> {
 
 /**
  * Sign in administrator using Username ("admin") and Password.
- * Maps username "admin" to internal email "admin@foodiejewdie.com" for Firebase Auth.
+ * Maps username "admin" to internal email "admin@foodeejewdee.co.uk" for Firebase Auth.
  * Throws errors with diagnostic codes on failure.
  */
 export async function loginAdminWithUsername(

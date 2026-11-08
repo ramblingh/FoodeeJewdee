@@ -381,9 +381,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <div className="pt-2 border-t border-amber-200/80 text-[11px] text-amber-900 space-y-1">
                       <p className="font-semibold">Diagnostic Troubleshooting Checklist:</p>
                       <ul className="list-disc list-inside space-y-0.5 text-amber-800">
-                        <li>Ensure user <code className="bg-amber-100 px-1 rounded font-mono">admin@foodiejewdie.com</code> exists in Firebase Auth.</li>
-                        <li>Ensure document exists at path: <code className="bg-amber-100 px-1 rounded font-mono">/admins/2Mq1JKwE2zRn26H4DEEgRj3zPGF3</code></li>
-                        <li>Ensure document contains string field: <code className="bg-amber-100 px-1 rounded font-mono">role: "admin"</code> (lowercase)</li>
+                        <li>Ensure user <code className="bg-amber-100 px-1 rounded font-mono">admin@foodeejewdee.co.uk</code> exists in Firebase Auth.</li>
+                        <li>Ensure document exists at path: <code className="bg-amber-100 px-1 rounded font-mono">/admins/&lt;user-uid&gt;</code> in Firestore.</li>
+                        <li>Ensure document contains string field: <code className="bg-amber-100 px-1 rounded font-mono">role: "admin"</code> (lowercase).</li>
                       </ul>
                     </div>
                   )}
